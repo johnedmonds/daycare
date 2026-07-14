@@ -183,8 +183,19 @@ def search_daycares(req: SearchRequest):
         all_daycares = fetch_daycares()
         filtered_daycares = filter_daycares(all_daycares, accepts_infants_only=req.accepts_infants_only)
         
-        # Find which daycares lie in the isochrones
-        matched_daycares = find_daycares_in_isochrones(filtered_daycares, isochrones_dict)
+        # Construct sources dictionary for network-based matching
+        sources_dict = {}
+        for station in route_stations:
+            sources_dict[station["gtfs_stop_id"]] = (station["latitude"], station["longitude"])
+        if req.home_coords:
+            sources_dict["home"] = req.home_coords
+        if req.work_coords:
+            sources_dict["work"] = req.work_coords
+
+        # Find which daycares lie in the isochrones using network distance
+        matched_daycares = find_daycares_in_isochrones(
+            filtered_daycares, G_walk, sources_dict, req.walk_time_mins, req.walk_speed_kmh
+        )
 
         # Get inspections map
         inspections_by_permit = get_inspections_by_permit()
@@ -200,6 +211,7 @@ def search_daycares(req: SearchRequest):
             
             if nearest_source == "home":
                 added_time = calculate_added_commute_time(
+                    G_walk,
                     dc, "home", 
                     home_coords=req.home_coords,
                     home_station_coords=home_station_coords,
@@ -207,6 +219,7 @@ def search_daycares(req: SearchRequest):
                 )
             elif nearest_source == "work":
                 added_time = calculate_added_commute_time(
+                    G_walk,
                     dc, "work", 
                     work_coords=req.work_coords,
                     work_station_coords=work_station_coords,
@@ -216,12 +229,14 @@ def search_daycares(req: SearchRequest):
                 # Nearest source is a subway station on the route
                 station = stations_by_id.get(nearest_source)
                 if station:
-                    # added_time = 2 * walk(station -> daycare) + train wait (4 mins)
-                    walk_mins = estimate_walk_time(
-                        station["latitude"], station["longitude"], 
-                        dc["latitude"], dc["longitude"], 
-                        req.walk_speed_kmh
-                    )
+                    # Use the pre-calculated network walk time!
+                    walk_mins = dc.get("network_walk_time")
+                    if walk_mins is None:
+                        walk_mins = estimate_walk_time(
+                            station["latitude"], station["longitude"], 
+                            dc["latitude"], dc["longitude"], 
+                            req.walk_speed_kmh
+                        )
                     added_time = round(2 * walk_mins + 4.0, 1)
             
             # Format display strings

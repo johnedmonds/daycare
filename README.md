@@ -1,0 +1,2 @@
+uv run run.py
+
