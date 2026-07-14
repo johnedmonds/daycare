@@ -491,8 +491,7 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
         
         marker.bindPopup(popupContent);
         daycareMarkers[dc.dcid] = marker;
-        
-        // Generate list card HTML
+          // Generate list card HTML
         const card = document.createElement("div");
         card.className = "daycare-card";
         card.id = `card-${dc.dcid}`;
@@ -509,6 +508,8 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
             sourceDesc = station ? `Off ${station.station_name}` : "Commute Stop";
         }
         
+        const totalVio = dc.safety_metrics ? dc.safety_metrics.total_violations : 0;
+        
         card.innerHTML = `
             <div class="card-header">
                 <h4 class="card-title">${dc.program_name}</h4>
@@ -520,19 +521,63 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
                 <p><i data-lucide="phone"></i> ${dc.phone || 'No phone'}</p>
                 <p><i data-lucide="users"></i> Cap: ${dc.capacity || 'N/A'}</p>
             </div>
+            
+            <!-- Expanded Section -->
+            <div class="card-body-expanded">
+                <!-- Tabs Navigation -->
+                <div class="card-expanded-tabs">
+                    <button class="expanded-tab-btn active" id="tab-btn-overview-${dc.dcid}">Overview</button>
+                    <button class="expanded-tab-btn" id="tab-btn-safety-${dc.dcid}">Safety & Staff</button>
+                    <button class="expanded-tab-btn" id="tab-btn-violations-${dc.dcid}">Violations (${totalVio})</button>
+                </div>
+                
+                <!-- Tab Contents -->
+                <!-- 1. OVERVIEW TAB -->
+                <div class="expanded-tab-content active" id="content-overview-${dc.dcid}">
+                    <div class="overview-list">
+                        <div class="overview-item"><i data-lucide="building"></i> <span><b>Borough:</b> ${dc.borough || 'N/A'}</span></div>
+                        <div class="overview-item"><i data-lucide="hash"></i> <span><b>Permit #:</b> ${dc.permit_number || 'N/A'}</span></div>
+                        <div class="overview-item"><i data-lucide="shield-check"></i> <span><b>Type:</b> ${dc.facility_type || 'N/A'} (${dc.program_type || 'N/A'})</span></div>
+                        <div class="overview-item"><i data-lucide="baby"></i> <span><b>Age Limit:</b> ${dc.age_range || 'N/A'}</span></div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dc.program_name + ' ' + dc.address + ' ' + dc.borough + ' NY')}" 
+                           target="_blank" class="action-btn action-btn-primary" onclick="event.stopPropagation();">
+                            <i data-lucide="navigation"></i> Directions
+                        </a>
+                        <a href="https://www.google.com/search?q=${encodeURIComponent(dc.program_name + ' ' + dc.borough + ' daycare reviews tours')}" 
+                           target="_blank" class="action-btn action-btn-secondary" onclick="event.stopPropagation();">
+                            <i data-lucide="search"></i> Reviews & Tours
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- 2. SAFETY & STAFF TAB -->
+                <div class="expanded-tab-content" id="content-safety-${dc.dcid}">
+                    ${renderSafetyTabHTML(dc)}
+                </div>
+                
+                <!-- 3. VIOLATIONS TAB -->
+                <div class="expanded-tab-content" id="content-violations-${dc.dcid}">
+                    ${renderViolationsTabHTML(dc)}
+                </div>
+            </div>
+            
             <div class="card-footer">
                 <span class="source-indicator">${sourceDesc}</span>
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dc.address + ' ' + dc.borough + ' NY')}" 
-                   target="_blank" class="directions-link">
-                    Directions <i data-lucide="external-link"></i>
-                </a>
+                <span class="expand-prompt" style="font-size: 11px; color: var(--color-primary); font-weight: 600;">Click to see details</span>
             </div>
         `;
         
         // Card hover events to highlight map markers
         card.addEventListener("mouseenter", () => highlightDaycare(dc.dcid));
         card.addEventListener("mouseleave", () => unhighlightDaycare(dc.dcid));
-        card.addEventListener("click", () => {
+        card.addEventListener("click", (e) => {
+            // Expand card
+            toggleCardExpanded(dc.dcid);
+            
+            // Map actions
             highlightDaycare(dc.dcid);
             const m = daycareMarkers[dc.dcid];
             if (m) {
@@ -540,6 +585,48 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
                 map.setView(m.getLatLng(), 15);
             }
         });
+        
+        // Set up tab click handlers inside the card
+        setTimeout(() => {
+            const tabOverviewBtn = document.getElementById(`tab-btn-overview-${dc.dcid}`);
+            const tabSafetyBtn = document.getElementById(`tab-btn-safety-${dc.dcid}`);
+            const tabViolationsBtn = document.getElementById(`tab-btn-violations-${dc.dcid}`);
+
+            const contentOverview = document.getElementById(`content-overview-${dc.dcid}`);
+            const contentSafety = document.getElementById(`content-safety-${dc.dcid}`);
+            const contentViolations = document.getElementById(`content-violations-${dc.dcid}`);
+
+            if (tabOverviewBtn && tabSafetyBtn && tabViolationsBtn) {
+                function switchCardTab(tabName) {
+                    [tabOverviewBtn, tabSafetyBtn, tabViolationsBtn].forEach(btn => btn.classList.remove("active"));
+                    [contentOverview, contentSafety, contentViolations].forEach(content => content.classList.remove("active"));
+                    
+                    if (tabName === "overview") {
+                        tabOverviewBtn.classList.add("active");
+                        contentOverview.classList.add("active");
+                    } else if (tabName === "safety") {
+                        tabSafetyBtn.classList.add("active");
+                        contentSafety.classList.add("active");
+                    } else if (tabName === "violations") {
+                        tabViolationsBtn.classList.add("active");
+                        contentViolations.classList.add("active");
+                    }
+                }
+
+                tabOverviewBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    switchCardTab("overview");
+                });
+                tabSafetyBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    switchCardTab("safety");
+                });
+                tabViolationsBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    switchCardTab("violations");
+                });
+            }
+        }, 0);
         
         list.appendChild(card);
     });
@@ -624,4 +711,167 @@ function toggleSidebar() {
     const isCollapsed = sidebar.classList.contains("collapsed");
     toggleBtn.innerHTML = isCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="x"></i>';
     lucide.createIcons();
+}
+
+// --- Toggle Daycare Card Expansion ---
+function toggleCardExpanded(dcid) {
+    const card = document.getElementById(`card-${dcid}`);
+    if (!card) return;
+    
+    const isExpanded = card.classList.contains("expanded");
+    
+    // Collapse all other cards first
+    document.querySelectorAll(".daycare-card.expanded").forEach(c => {
+        if (c.id !== `card-${dcid}`) {
+            c.classList.remove("expanded");
+            const prompt = c.querySelector(".expand-prompt");
+            if (prompt) prompt.textContent = "Click to see details";
+        }
+    });
+    
+    const prompt = card.querySelector(".expand-prompt");
+    if (isExpanded) {
+        card.classList.remove("expanded");
+        if (prompt) prompt.textContent = "Click to see details";
+    } else {
+        card.classList.add("expanded");
+        if (prompt) prompt.textContent = "Click to collapse";
+        // Scroll card into view smoothly
+        setTimeout(() => {
+            card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 100);
+    }
+}
+
+// --- Render Safety Tab HTML ---
+function renderSafetyTabHTML(dc) {
+    const sm = dc.safety_metrics;
+    if (!sm || sm.total_inspections === 0) {
+        return `
+            <div class="safety-grade-container">
+                <span class="safety-label">Safety Status</span>
+                <span class="safety-status-badge status-warning">No History</span>
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-muted); text-align: center; margin-top: 20px;">
+                No city inspections are cached for this daycare permit.
+            </p>
+        `;
+    }
+    
+    // Safety score calculation
+    let safetyStatus = "Passed";
+    let safetyClass = "status-passed";
+    if (sm.hazard_violations > 0) {
+        safetyStatus = `${sm.hazard_violations} Health Hazard${sm.hazard_violations > 1 ? 's' : ''}`;
+        safetyClass = "status-danger";
+    } else if (sm.critical_violations > 0) {
+        safetyStatus = `${sm.critical_violations} Critical Violation${sm.critical_violations > 1 ? 's' : ''}`;
+        safetyClass = "status-warning";
+    } else if (sm.total_violations > 0) {
+        safetyStatus = `${sm.total_violations} General Violation${sm.total_violations > 1 ? 's' : ''}`;
+        safetyClass = "status-warning";
+    } else {
+        safetyStatus = "Clean Record";
+    }
+    
+    const latestDate = sm.latest_inspection_date 
+        ? new Date(sm.latest_inspection_date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'}) 
+        : "N/A";
+    
+    // Formulate rates comparison
+    const r = sm.rates;
+    const violationRateVal = r.violation_rate !== null ? `${r.violation_rate}%` : '0%';
+    const avgViolationRateVal = r.avg_violation_rate !== null ? `${r.avg_violation_rate}%` : '21.9%';
+    const criticalRateVal = r.critical_rate !== null ? `${r.critical_rate}%` : '0%';
+    const avgCriticalRateVal = r.avg_critical_rate !== null ? `${r.avg_critical_rate}%` : '18.9%';
+    
+    // Staffing compare
+    const st = sm.staffing;
+    const staffText = st.total_workers !== null 
+        ? `<b>${st.total_workers}</b> educational workers <span style="color: var(--text-dim)">(City avg: ${st.avg_workers || 11})</span>`
+        : "Staffing data not reported";
+        
+    return `
+        <div class="safety-grade-container">
+            <span class="safety-label">Latest: ${latestDate}</span>
+            <span class="safety-status-badge ${safetyClass}">${safetyStatus}</span>
+        </div>
+        <div class="metrics-comparison">
+            <div class="metric-card">
+                <div class="metric-label-row">
+                    <span>Violation Rate</span>
+                    <span class="metric-val-compare">Facility: ${violationRateVal} | City Avg: ${avgViolationRateVal}</span>
+                </div>
+                <div class="metric-bar-group">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill facility" style="width: ${r.violation_rate || 0}%; background-color: ${r.violation_rate > 21.9 ? 'var(--color-danger)' : 'var(--color-warning)'}"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label-row">
+                    <span>Critical Violation Rate</span>
+                    <span class="metric-val-compare">Facility: ${criticalRateVal} | City Avg: ${avgCriticalRateVal}</span>
+                </div>
+                <div class="metric-bar-group">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill facility-hazard" style="width: ${r.critical_rate || 0}%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="staffing-info">
+                <i data-lucide="users"></i>
+                <span>${staffText}</span>
+            </div>
+        </div>
+    `;
+}
+
+// --- Render Violations Tab HTML ---
+function renderViolationsTabHTML(dc) {
+    const sm = dc.safety_metrics;
+    if (!sm || !sm.violations || sm.violations.length === 0) {
+        return `
+            <div class="no-violations-state">
+                <i data-lucide="shield-alert" style="color: var(--color-success); font-size: 24px; margin-bottom: 6px; display: block; text-align: center;"></i>
+                <p style="text-align: center;">No active or historical violations recorded for this daycare.</p>
+            </div>
+        `;
+    }
+    
+    let listHTML = "";
+    sm.violations.forEach(v => {
+        const vDate = v.date ? new Date(v.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'}) : "N/A";
+        
+        let sevClass = "general";
+        const catUpper = v.category.toUpperCase();
+        if (catUpper.includes("HAZARD")) {
+            sevClass = "hazard";
+        } else if (catUpper.includes("CRITICAL")) {
+            sevClass = "critical";
+        }
+        
+        const statusClass = v.status.toUpperCase() === "CORRECTED" ? "status-corrected" : "status-open";
+        
+        listHTML += `
+            <div class="violation-card">
+                <div class="violation-header-row">
+                    <span class="violation-date">${vDate}</span>
+                    <span class="violation-severity-badge ${sevClass}">${v.category}</span>
+                </div>
+                <p class="violation-summary-text">${v.summary}</p>
+                <div class="violation-status-row">
+                    <span>Status: <span class="${statusClass}">${v.status}</span></span>
+                </div>
+            </div>
+        `;
+    });
+    
+    return `
+        <div class="violations-scroller">
+            ${listHTML}
+        </div>
+    `;
 }

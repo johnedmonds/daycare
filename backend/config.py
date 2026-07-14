@@ -56,3 +56,5 @@ MTA_COLORS = {
 # API Endpoints
 SUBWAY_STATIONS_URL = "https://data.ny.gov/resource/39hk-dx4f.json"
 DAYCARE_PROGRAMS_URL = "https://data.cityofnewyork.us/resource/gy3q-4tzp.json"
+DAYCARE_INSPECTIONS_URL = "https://data.cityofnewyork.us/resource/dsg6-ifza.json"
+

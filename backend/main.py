@@ -7,7 +7,13 @@ from typing import List, Optional, Tuple, Dict, Any
 
 from backend.config import CACHE_DIR, DEFAULT_WALK_SPEED_KMH, DEFAULT_BBOX
 from backend.data.subway import fetch_stations, get_stations_by_line, get_all_lines
-from backend.data.daycare import fetch_daycares, filter_daycares
+from backend.data.daycare import (
+    fetch_daycares, 
+    filter_daycares, 
+    fetch_inspections, 
+    get_inspections_by_permit, 
+    enrich_daycare_with_inspections
+)
 from backend.data.network import load_walk_network
 from backend.geo.isochrone import compute_multi_ring_isochrone
 from backend.geo.routing import get_stations_between, order_stations_on_line
@@ -45,6 +51,7 @@ def startup_event():
         # Prime the cache for stations and daycares
         fetch_stations()
         fetch_daycares()
+        fetch_inspections()
         logger.info("Application startup and data warming complete.")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
@@ -179,9 +186,13 @@ def search_daycares(req: SearchRequest):
         # Find which daycares lie in the isochrones
         matched_daycares = find_daycares_in_isochrones(filtered_daycares, isochrones_dict)
 
+        # Get inspections map
+        inspections_by_permit = get_inspections_by_permit()
+
         # 5. Calculate added commute times and enrich daycare results
         results = []
         for dc in matched_daycares:
+            enrich_daycare_with_inspections(dc, inspections_by_permit)
             nearest_source = dc["nearest_source_id"]
             
             # Determine added time
@@ -229,7 +240,9 @@ def search_daycares(req: SearchRequest):
                 "longitude": dc["longitude"],
                 "nearest_source_id": nearest_source,
                 "walk_ring_mins": dc["walk_ring_mins"],
-                "added_commute_time": added_time
+                "added_commute_time": added_time,
+                "permit_number": dc.get("permit_number"),
+                "safety_metrics": dc.get("safety_metrics")
             }
             results.append(dc_res)
             
@@ -269,12 +282,13 @@ def get_status():
     Get caching status of the data files and walking network.
     """
     from backend.data.subway import STATIONS_CACHE_PATH
-    from backend.data.daycare import DAYCARES_CACHE_PATH
+    from backend.data.daycare import DAYCARES_CACHE_PATH, INSPECTIONS_CACHE_PATH
     from backend.data.network import GRAPHML_PATH
     
     return {
         "subway_stations_cached": STATIONS_CACHE_PATH.exists(),
         "daycares_cached": DAYCARES_CACHE_PATH.exists(),
+        "inspections_cached": INSPECTIONS_CACHE_PATH.exists(),
         "walk_network_cached": GRAPHML_PATH.exists(),
         "graph_loaded": G_walk is not None,
         "graph_nodes": len(G_walk.nodes) if G_walk else 0,

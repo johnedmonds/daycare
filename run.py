@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from backend.config import CACHE_DIR, DEFAULT_BBOX
 from backend.data.subway import fetch_stations
-from backend.data.daycare import fetch_daycares
+from backend.data.daycare import fetch_daycares, fetch_inspections
 from backend.data.network import load_walk_network, GRAPHML_PATH
 
 def init_data():
@@ -31,6 +31,12 @@ def init_data():
     print("[2/3] Checking NYC daycare facilities cache...", end="", flush=True)
     daycares = fetch_daycares()
     print(f" OK ({len(daycares)} daycares loaded)")
+    
+    # 2.5 Daycare Inspections
+    print("[2.5/3] Checking NYC daycare inspections cache...", end="", flush=True)
+    inspections = fetch_inspections()
+    print(f" OK ({len(inspections)} inspections loaded)")
+
     
     # 3. Walking Network Graph
     print("[3/3] Checking walking network cache...", end="", flush=True)
