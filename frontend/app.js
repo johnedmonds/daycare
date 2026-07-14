@@ -1,0 +1,627 @@
+// --- State Management ---
+let map;
+let linesData = [];
+let stationsData = [];
+let routeStations = [];
+let daycareMarkers = {};
+let stationMarkers = {};
+let isochroneLayers = [];
+let homeMarker = null;
+let workMarker = null;
+
+let homeCoords = null;
+let workCoords = null;
+let pinMode = null; // 'home' or 'work' or null
+
+// MTA Official Hex Colors lookup (matching backend)
+const MTA_COLORS = {
+    "A": "#0039A6", "C": "#0039A6", "E": "#0039A6",
+    "1": "#EE352E", "2": "#EE352E", "3": "#EE352E",
+    "B": "#FF6319", "D": "#FF6319", "F": "#FF6319", "M": "#FF6319",
+    "G": "#6CBE45", "L": "#A7A9AC",
+    "J": "#996633", "Z": "#996633",
+    "N": "#FCCC0A", "Q": "#FCCC0A", "R": "#FCCC0A", "W": "#FCCC0A",
+    "7": "#B933AD", "S": "#808080"
+};
+
+// Isochrone ring styles
+const ISOCHRONE_STYLES = {
+    5: { color: "#10b981", fillColor: "#10b981", weight: 1.5, fillOpacity: 0.18 },
+    10: { color: "#f59e0b", fillColor: "#f59e0b", weight: 1.5, fillOpacity: 0.12 },
+    15: { color: "#ef4444", fillColor: "#ef4444", weight: 1.5, fillOpacity: 0.08 }
+};
+
+// Layer Groups
+let stationsLayerGroup;
+let isochronesLayerGroup;
+let daycaresLayerGroup;
+let pinsLayerGroup;
+let routeLineLayer;
+
+// --- Initialize App ---
+document.addEventListener("DOMContentLoaded", () => {
+    initMap();
+    fetchLines();
+    lucide.createIcons();
+});
+
+// --- Map Setup ---
+function initMap() {
+    // Center on NYC (Nostrand Ave / central Brooklyn area)
+    map = L.map("map", {
+        zoomControl: false
+    }).setView([40.7128, -73.9600], 12);
+
+    L.control.zoom({
+        position: 'topright'
+    }).addTo(map);
+
+    // Dark Matter Map Tiles
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+    }).addTo(map);
+
+    // Initialize layer groups
+    stationsLayerGroup = L.layerGroup().addTo(map);
+    isochronesLayerGroup = L.layerGroup().addTo(map);
+    daycaresLayerGroup = L.layerGroup().addTo(map);
+    pinsLayerGroup = L.layerGroup().addTo(map);
+    routeLineLayer = L.polyline([], { color: '#3b82f6', weight: 4, opacity: 0.6, dashArray: '8, 8' }).addTo(map);
+
+    // Map click handler for placing custom pins
+    map.on("click", (e) => {
+        if (pinMode === "home") {
+            setHomePin(e.latlng.lat, e.latlng.lng);
+        } else if (pinMode === "work") {
+            setWorkPin(e.latlng.lat, e.latlng.lng);
+        }
+    });
+}
+
+// --- Fetch Subway Lines ---
+async function fetchLines() {
+    try {
+        const response = await fetch("/api/lines");
+        const data = await response.json();
+        linesData = data.lines;
+        
+        const select = document.getElementById("subway-line");
+        select.innerHTML = '<option value="">Select Line...</option>';
+        
+        linesData.forEach(line => {
+            const opt = document.createElement("option");
+            opt.value = line;
+            opt.textContent = `${line} Train`;
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        console.error("Error fetching subway lines:", e);
+    }
+}
+
+// --- Subway Line Selection Changed ---
+async function onLineChanged() {
+    const line = document.getElementById("subway-line").value;
+    const homeSelect = document.getElementById("home-station");
+    const workSelect = document.getElementById("work-station");
+    
+    // Clear existing selections and map elements
+    homeSelect.innerHTML = '<option value="">Select Home Station...</option>';
+    workSelect.innerHTML = '<option value="">Select Work Station...</option>';
+    homeSelect.disabled = true;
+    workSelect.disabled = true;
+    
+    clearSearchLayers();
+    stationsLayerGroup.clearLayers();
+    stationMarkers = {};
+    
+    if (!line) return;
+    
+    try {
+        const response = await fetch(`/api/stations?line=${line}`);
+        const data = await response.json();
+        stationsData = data.stations;
+        
+        // Populate dropdowns
+        homeSelect.innerHTML = '<option value="">Select Home Station...</option>';
+        workSelect.innerHTML = '<option value="">Select Work Station...</option>';
+        
+        stationsData.forEach(station => {
+            const optHome = document.createElement("option");
+            optHome.value = station.gtfs_stop_id;
+            optHome.textContent = station.station_name;
+            homeSelect.appendChild(optHome);
+            
+            const optWork = document.createElement("option");
+            optWork.value = station.gtfs_stop_id;
+            optWork.textContent = station.station_name;
+            workSelect.appendChild(optWork);
+        });
+        
+        homeSelect.disabled = false;
+        workSelect.disabled = false;
+        
+        // Plot all stations on map (gray style initially)
+        const lineColor = MTA_COLORS[line] || "#ffffff";
+        stationsData.forEach(station => {
+            const marker = L.circleMarker([station.latitude, station.longitude], {
+                radius: 5,
+                color: "#1f2937",
+                fillColor: lineColor,
+                fillOpacity: 0.6,
+                weight: 1.5
+            }).addTo(stationsLayerGroup);
+            
+            marker.bindPopup(`<b>${station.station_name}</b><br>${station.daytime_routes} Train(s)`);
+            stationMarkers[station.gtfs_stop_id] = marker;
+        });
+        
+        // Adjust map bounds to cover all line stations
+        if (stationsData.length > 0) {
+            const bounds = L.latLngBounds(stationsData.map(s => [s.latitude, s.longitude]));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    } catch (e) {
+        console.error("Error loading stations:", e);
+    }
+}
+
+// --- Stations Selection Changed ---
+function onStationsChanged() {
+    const line = document.getElementById("subway-line").value;
+    const homeVal = document.getElementById("home-station").value;
+    const workVal = document.getElementById("work-station").value;
+    
+    // Reset all station markers style
+    const lineColor = MTA_COLORS[line] || "#ffffff";
+    Object.values(stationMarkers).forEach(marker => {
+        marker.setStyle({
+            radius: 5,
+            color: "#1f2937",
+            fillColor: lineColor,
+            fillOpacity: 0.6,
+            weight: 1.5
+        });
+    });
+    
+    routeLineLayer.setLatLngs([]);
+    
+    if (homeVal && workVal) {
+        // Find route stations
+        const homeIdx = stationsData.findIndex(s => s.gtfs_stop_id === homeVal);
+        const workIdx = stationsData.findIndex(s => s.gtfs_stop_id === workVal);
+        
+        if (homeIdx !== -1 && workIdx !== -1) {
+            const start = Math.min(homeIdx, workIdx);
+            const end = Math.max(homeIdx, workIdx);
+            routeStations = stationsData.slice(start, end + 1);
+            
+            // Highlight route stations
+            routeStations.forEach(station => {
+                const marker = stationMarkers[station.gtfs_stop_id];
+                if (marker) {
+                    marker.setStyle({
+                        radius: 8,
+                        color: "#ffffff",
+                        fillColor: lineColor,
+                        fillOpacity: 0.9,
+                        weight: 2
+                    });
+                }
+            });
+            
+            // Special styling for endpoints
+            const homeMarkerObj = stationMarkers[homeVal];
+            if (homeMarkerObj) homeMarkerObj.setStyle({ radius: 10, color: "#10b981", weight: 3 });
+            const workMarkerObj = stationMarkers[workVal];
+            if (workMarkerObj) workMarkerObj.setStyle({ radius: 10, color: "#a855f7", weight: 3 });
+            
+            // Draw connection route line
+            const latlngs = routeStations.map(s => [s.latitude, s.longitude]);
+            routeLineLayer.setLatLngs(latlngs);
+            routeLineLayer.setStyle({ color: lineColor });
+            
+            // Fit bounds to the corridor
+            map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80] });
+        }
+    }
+}
+
+// --- Toggle Pin Mode (Home / Work) ---
+function togglePinMode(type) {
+    const homeChk = document.getElementById("pin-home-chk");
+    const workChk = document.getElementById("pin-work-chk");
+    
+    if (type === "home") {
+        if (pinMode === "home") {
+            // Cancel
+            pinMode = null;
+            homeChk.checked = false;
+        } else {
+            pinMode = "home";
+            homeChk.checked = true;
+            workChk.checked = false;
+            map.getContainer().style.cursor = "crosshair";
+        }
+    } else if (type === "work") {
+        if (pinMode === "work") {
+            // Cancel
+            pinMode = null;
+            workChk.checked = false;
+        } else {
+            pinMode = "work";
+            workChk.checked = true;
+            homeChk.checked = false;
+            map.getContainer().style.cursor = "crosshair";
+        }
+    }
+}
+
+// --- Set Custom Pins ---
+function setHomePin(lat, lng) {
+    homeCoords = [lat, lng];
+    pinMode = null;
+    document.getElementById("pin-home-chk").checked = false;
+    document.getElementById("home-coords-display").classList.remove("hidden");
+    map.getContainer().style.cursor = "";
+    
+    if (homeMarker) pinsLayerGroup.removeLayer(homeMarker);
+    
+    homeMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'custom-pin home-pin',
+            html: '<div style="background-color: #10b981; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(16, 185, 129, 0.6)"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        })
+    }).addTo(pinsLayerGroup);
+    homeMarker.bindPopup("<b>Home Location Pin</b>");
+}
+
+function setWorkPin(lat, lng) {
+    workCoords = [lat, lng];
+    pinMode = null;
+    document.getElementById("pin-work-chk").checked = false;
+    document.getElementById("work-coords-display").classList.remove("hidden");
+    map.getContainer().style.cursor = "";
+    
+    if (workMarker) pinsLayerGroup.removeLayer(workMarker);
+    
+    workMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'custom-pin work-pin',
+            html: '<div style="background-color: #a855f7; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(168, 85, 247, 0.6)"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        })
+    }).addTo(pinsLayerGroup);
+    workMarker.bindPopup("<b>Work Location Pin</b>");
+}
+
+// --- Clear Layer Groups ---
+function clearSearchLayers() {
+    isochronesLayerGroup.clearLayers();
+    daycaresLayerGroup.clearLayers();
+    daycareMarkers = {};
+    isochroneLayers = [];
+    document.getElementById("results-count").classList.add("hidden");
+    document.getElementById("results-count").textContent = "0";
+}
+
+// --- TRIGGER SEARCH ---
+async function triggerSearch() {
+    const line = document.getElementById("subway-line").value;
+    const homeVal = document.getElementById("home-station").value;
+    const workVal = document.getElementById("work-station").value;
+    const walkTime = parseInt(document.getElementById("walk-time").value);
+    const walkSpeed = parseFloat(document.getElementById("walk-speed").value);
+    const acceptsInfantsOnly = document.getElementById("infant-filter").checked;
+    
+    if (!line || !homeVal || !workVal) {
+        alert("Please configure subway line, home station, and work station first.");
+        return;
+    }
+    
+    // UI Loading state
+    const searchBtn = document.getElementById("search-btn");
+    const spinner = document.getElementById("search-spinner");
+    const progressArea = document.getElementById("progress-area");
+    const progressFill = document.getElementById("progress-fill");
+    
+    searchBtn.disabled = true;
+    spinner.classList.remove("hidden");
+    progressArea.classList.remove("hidden");
+    progressFill.style.width = "10%";
+    
+    clearSearchLayers();
+    
+    // Switch to results tab to show progress
+    switchTab("results");
+    
+    const list = document.getElementById("results-list");
+    list.innerHTML = `
+        <div class="placeholder-state">
+            <div class="spinner" style="width: 32px; height: 32px; border-color: rgba(59, 130, 246, 0.15); border-top-color: var(--color-primary);"></div>
+            <h3>Analyzing corridors...</h3>
+            <p id="loading-subtext">Computing walking geometries along your route. This is computed entirely locally using your CPU graph library.</p>
+        </div>
+    `;
+    
+    const body = {
+        line: line,
+        home_station_id: homeVal,
+        work_station_id: workVal,
+        walk_time_mins: walkTime,
+        walk_speed_kmh: walkSpeed,
+        home_coords: homeCoords,
+        work_coords: workCoords,
+        accepts_infants_only: acceptsInfantsOnly
+    };
+    
+    try {
+        progressFill.style.width = "40%";
+        document.getElementById("progress-text").textContent = "Filtering daycares & routing paths...";
+        
+        const response = await fetch("/api/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+        
+        progressFill.style.width = "80%";
+        document.getElementById("progress-text").textContent = "Mapping walk limits...";
+        
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
+        
+        const data = await response.json();
+        renderResults(data, walkTime, acceptsInfantsOnly);
+        
+        progressFill.style.width = "100%";
+        document.getElementById("progress-text").textContent = "Analysis complete!";
+        
+        setTimeout(() => {
+            progressArea.classList.add("hidden");
+        }, 1500);
+        
+    } catch (e) {
+        console.error(e);
+        alert("Search failed: " + e.message);
+        list.innerHTML = `
+            <div class="placeholder-state" style="color: var(--color-danger)">
+                <div class="icon">⚠️</div>
+                <h3>Calculation Error</h3>
+                <p>${e.message}</p>
+            </div>
+        `;
+        progressArea.classList.add("hidden");
+    } finally {
+        searchBtn.disabled = false;
+        spinner.classList.add("hidden");
+    }
+}
+
+// --- Render Results ---
+function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
+    const list = document.getElementById("results-list");
+    list.innerHTML = "";
+    
+    // Update header summary metrics
+    document.getElementById("summary-total").textContent = data.daycares.length;
+    document.getElementById("summary-infant").textContent = acceptsInfantsOnly ? "Infants" : "All Ages";
+    document.getElementById("summary-budget").textContent = `${maxWalkTime} min`;
+    
+    const countBadge = document.getElementById("results-count");
+    countBadge.classList.remove("hidden");
+    countBadge.textContent = data.daycares.length;
+    
+    if (data.daycares.length === 0) {
+        list.innerHTML = `
+            <div class="placeholder-state">
+                <div class="icon">🔍</div>
+                <h3>No convenient daycares found</h3>
+                <p>Try increasing your walk budget, placing home/work pins, or checking the "Infant Care" option to broaden your reach.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // 1. Draw Isochrones on Map
+    Object.entries(data.isochrones).forEach(([sourceId, rings]) => {
+        // Sort rings in reverse so largest rings (15m) are drawn first (in the background)
+        // and smallest rings (5m) are drawn on top.
+        const sortedRings = Object.entries(rings).sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+        
+        sortedRings.forEach(([minsStr, geom]) => {
+            const mins = parseInt(minsStr);
+            const style = ISOCHRONE_STYLES[mins] || { color: "#ffffff", fillColor: "#ffffff", weight: 1, fillOpacity: 0.1 };
+            
+            // Convert to Leaflet GeoJSON layer
+            const layer = L.geoJSON(geom, {
+                style: {
+                    ...style,
+                    // If source is Home or Work, use alternate styling
+                    color: sourceId === "home" ? "#10b981" : (sourceId === "work" ? "#a855f7" : style.color),
+                    fillColor: sourceId === "home" ? "#10b981" : (sourceId === "work" ? "#a855f7" : style.fillColor)
+                }
+            }).addTo(isochronesLayerGroup);
+            
+            isochroneLayers.push(layer);
+        });
+    });
+
+    // 2. Draw Daycares and Populate List
+    data.daycares.forEach(dc => {
+        // Map marker
+        const isInfant = dc.age_range && dc.age_range.toUpperCase().includes("0 YEARS");
+        
+        // Color badge by added commute time
+        let addedTimeClass = "";
+        if (dc.added_commute_time <= 8) {
+            addedTimeClass = "";
+        } else if (dc.added_commute_time <= 15) {
+            addedTimeClass = "warning";
+        } else {
+            addedTimeClass = "danger";
+        }
+        
+        const popupContent = `
+            <div>
+                <h3>${dc.program_name}</h3>
+                <p><b>Address:</b> ${dc.address}, ${dc.borough}</p>
+                <p><b>Phone:</b> ${dc.phone || 'N/A'}</p>
+                <p><b>Age Group:</b> ${dc.age_range || 'Unknown'}</p>
+                <p><b>Capacity:</b> ${dc.capacity} children</p>
+                <p><b>Commute Detour:</b> <span style="font-weight: 800; color: ${addedTimeClass === "danger" ? "var(--color-danger)" : (addedTimeClass === "warning" ? "var(--color-warning)" : "var(--color-success)")}">+${dc.added_commute_time} min</span></p>
+            </div>
+        `;
+        
+        const marker = L.circleMarker([dc.latitude, dc.longitude], {
+            radius: 6,
+            color: "#ffffff",
+            fillColor: "#10b981",
+            fillOpacity: 0.85,
+            weight: 1.5
+        }).addTo(daycaresLayerGroup);
+        
+        marker.bindPopup(popupContent);
+        daycareMarkers[dc.dcid] = marker;
+        
+        // Generate list card HTML
+        const card = document.createElement("div");
+        card.className = "daycare-card";
+        card.id = `card-${dc.dcid}`;
+        
+        // Match label/source description
+        let sourceDesc = "";
+        if (dc.nearest_source_id === "home") {
+            sourceDesc = "Near Home";
+        } else if (dc.nearest_source_id === "work") {
+            sourceDesc = "Near Work";
+        } else {
+            // Find station name
+            const station = data.stations.find(s => s.gtfs_stop_id === dc.nearest_source_id);
+            sourceDesc = station ? `Off ${station.station_name}` : "Commute Stop";
+        }
+        
+        card.innerHTML = `
+            <div class="card-header">
+                <h4 class="card-title">${dc.program_name}</h4>
+                <span class="time-badge ${addedTimeClass}">+${dc.added_commute_time} min</span>
+            </div>
+            <div class="card-details">
+                <p><i data-lucide="map-pin"></i> ${dc.address}</p>
+                <p><i data-lucide="baby"></i> ${dc.age_range || 'Age info unavailable'}</p>
+                <p><i data-lucide="phone"></i> ${dc.phone || 'No phone'}</p>
+                <p><i data-lucide="users"></i> Cap: ${dc.capacity || 'N/A'}</p>
+            </div>
+            <div class="card-footer">
+                <span class="source-indicator">${sourceDesc}</span>
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dc.address + ' ' + dc.borough + ' NY')}" 
+                   target="_blank" class="directions-link">
+                    Directions <i data-lucide="external-link"></i>
+                </a>
+            </div>
+        `;
+        
+        // Card hover events to highlight map markers
+        card.addEventListener("mouseenter", () => highlightDaycare(dc.dcid));
+        card.addEventListener("mouseleave", () => unhighlightDaycare(dc.dcid));
+        card.addEventListener("click", () => {
+            highlightDaycare(dc.dcid);
+            const m = daycareMarkers[dc.dcid];
+            if (m) {
+                m.openPopup();
+                map.setView(m.getLatLng(), 15);
+            }
+        });
+        
+        list.appendChild(card);
+    });
+    
+    // Fit map bounds to cover route stations and daycares found
+    const allGeoms = [];
+    data.stations.forEach(s => allGeoms.push([s.latitude, s.longitude]));
+    data.daycares.forEach(d => allGeoms.push([d.latitude, d.longitude]));
+    if (homeCoords) allGeoms.push(homeCoords);
+    if (workCoords) allGeoms.push(workCoords);
+    
+    if (allGeoms.length > 0) {
+        map.fitBounds(L.latLngBounds(allGeoms), { padding: [50, 50] });
+    }
+    
+    lucide.createIcons();
+}
+
+// --- Card Hover Highlighting ---
+function highlightDaycare(dcid) {
+    const marker = daycareMarkers[dcid];
+    if (marker) {
+        marker.setStyle({
+            radius: 12,
+            color: "#ffffff",
+            fillColor: "#f59e0b", // pulse yellow on highlight
+            weight: 3
+        });
+        marker.bringToFront();
+    }
+    
+    const card = document.getElementById(`card-${dcid}`);
+    if (card) {
+        card.classList.add("highlighted");
+    }
+}
+
+function unhighlightDaycare(dcid) {
+    const marker = daycareMarkers[dcid];
+    if (marker) {
+        marker.setStyle({
+            radius: 6,
+            color: "#ffffff",
+            fillColor: "#10b981",
+            weight: 1.5
+        });
+    }
+    
+    const card = document.getElementById(`card-${dcid}`);
+    if (card) {
+        card.classList.remove("highlighted");
+    }
+}
+
+// --- Switch Tabs ---
+function switchTab(tab) {
+    const ctrlBtn = document.getElementById("tab-btn-controls");
+    const resBtn = document.getElementById("tab-btn-results");
+    const ctrlTab = document.getElementById("tab-controls");
+    const resTab = document.getElementById("tab-results");
+    
+    if (tab === "controls") {
+        ctrlBtn.classList.add("active");
+        resBtn.classList.remove("active");
+        ctrlTab.classList.add("active");
+        resTab.classList.remove("active");
+    } else {
+        ctrlBtn.classList.remove("active");
+        resBtn.classList.add("active");
+        ctrlTab.classList.remove("active");
+        resTab.classList.add("active");
+    }
+}
+
+// --- Mobile Navigation Drawer Toggle ---
+function toggleSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const toggleBtn = document.getElementById("mobile-toggle-btn");
+    
+    sidebar.classList.toggle("collapsed");
+    
+    const isCollapsed = sidebar.classList.contains("collapsed");
+    toggleBtn.innerHTML = isCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="x"></i>';
+    lucide.createIcons();
+}

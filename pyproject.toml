@@ -1,0 +1,16 @@
+[project]
+name = "daycare-finder"
+version = "0.1.0"
+description = "NYC Daycare Commute Finder"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "osmnx>=2.0.0",
+    "networkx>=3.0",
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "requests>=2.31.0",
+    "scikit-learn>=1.9.0",
+]
