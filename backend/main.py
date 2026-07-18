@@ -345,6 +345,7 @@ def search_daycares(req: SearchRequest):
         logger.error(f"Error during search: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/status")
 def get_status():
     """

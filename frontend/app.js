@@ -589,10 +589,6 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
                 <p><b>Age Group:</b> ${dc.age_range || 'Unknown'}</p>
                 <p><b>Capacity:</b> ${dc.capacity} children</p>
                 <p><b>Commute Detour:</b> <span style="font-weight: 800; color: ${addedTimeClass === "danger" ? "var(--color-danger)" : (addedTimeClass === "warning" ? "var(--color-warning)" : "var(--color-success)")}">+${dc.added_commute_time} min</span></p>
-                <p style="margin-top: 6px; display: flex; gap: 10px;">
-                    <a href="https://www.google.com/search?q=${encodeURIComponent(dc.program_name + ' ' + dc.borough + ' daycare website')}" target="_blank" onclick="event.stopPropagation();">Website ↗</a>
-                    <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dc.program_name + ' ' + dc.address + ' ' + dc.borough + ' NY')}" target="_blank" onclick="event.stopPropagation();">Directions ↗</a>
-                </p>
             </div>
         `;
         
@@ -663,11 +659,7 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
                         </a>
                         <a href="https://www.google.com/search?q=${encodeURIComponent(dc.program_name + ' ' + dc.borough + ' daycare reviews tours')}" 
                            target="_blank" class="action-btn action-btn-secondary" onclick="event.stopPropagation();">
-                            <i data-lucide="search"></i> Reviews
-                        </a>
-                        <a href="https://www.google.com/search?q=${encodeURIComponent(dc.program_name + ' ' + dc.borough + ' daycare website')}" 
-                           target="_blank" class="action-btn action-btn-tertiary" onclick="event.stopPropagation();">
-                            <i data-lucide="globe"></i> Website
+                            <i data-lucide="search"></i> Reviews & Tours
                         </a>
                     </div>
                 </div>
