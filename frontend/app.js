@@ -44,6 +44,7 @@ let workWalkLineLayer;
 document.addEventListener("DOMContentLoaded", () => {
     initMap();
     fetchLines();
+    setupCoordsPasteListeners();
     lucide.createIcons();
 });
 
@@ -350,6 +351,48 @@ function clearPin(type) {
         document.getElementById("work-lat").value = "";
         document.getElementById("work-lng").value = "";
         document.getElementById("btn-pin-work").classList.remove("active");
+    }
+}
+
+// --- Clipboard Coordinate Paste Handling ---
+function setupCoordsPasteListeners() {
+    ["home", "work"].forEach(type => {
+        ["lat", "lng"].forEach(coord => {
+            const input = document.getElementById(`${type}-${coord}`);
+            if (input) {
+                input.addEventListener("paste", (e) => handleCoordsPaste(e, type));
+            }
+        });
+    });
+}
+
+function handleCoordsPaste(event, type) {
+    const clipboardData = event.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+    
+    const pastedText = clipboardData.getData("text");
+    if (!pastedText) return;
+    
+    // Check if the pasted text has a comma (common format from Google Maps is "lat, lng")
+    if (pastedText.includes(",")) {
+        const parts = pastedText.split(",");
+        if (parts.length >= 2) {
+            const lat = parseFloat(parts[0].trim());
+            const lng = parseFloat(parts[1].trim());
+            
+            if (!isNaN(lat) && !isNaN(lng)) {
+                // Validation: Must be roughly near/within greater New York region
+                if (lat >= 40.0 && lat <= 41.5 && lng >= -74.5 && lng <= -73.0) {
+                    event.preventDefault(); // Stop normal single-input paste
+                    
+                    if (type === "home") {
+                        setHomePin(lat, lng);
+                    } else if (type === "work") {
+                        setWorkPin(lat, lng);
+                    }
+                }
+            }
+        }
     }
 }
 
