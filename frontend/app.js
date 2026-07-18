@@ -37,6 +37,8 @@ let isochronesLayerGroup;
 let daycaresLayerGroup;
 let pinsLayerGroup;
 let routeLineLayer;
+let homeWalkLineLayer;
+let workWalkLineLayer;
 
 // --- Initialize App ---
 document.addEventListener("DOMContentLoaded", () => {
@@ -69,6 +71,8 @@ function initMap() {
     daycaresLayerGroup = L.layerGroup().addTo(map);
     pinsLayerGroup = L.layerGroup().addTo(map);
     routeLineLayer = L.polyline([], { color: '#3b82f6', weight: 4, opacity: 0.6, dashArray: '8, 8' }).addTo(map);
+    homeWalkLineLayer = L.polyline([], { color: '#10b981', weight: 4, opacity: 0.8, dashArray: '5, 5' }).addTo(map);
+    workWalkLineLayer = L.polyline([], { color: '#a855f7', weight: 4, opacity: 0.8, dashArray: '5, 5' }).addTo(map);
 
     // Map click handler for placing custom pins
     map.on("click", (e) => {
@@ -358,6 +362,8 @@ function clearSearchLayers() {
     isochroneLayers = [];
     document.getElementById("results-count").classList.add("hidden");
     document.getElementById("results-count").textContent = "0";
+    if (homeWalkLineLayer) homeWalkLineLayer.setLatLngs([]);
+    if (workWalkLineLayer) workWalkLineLayer.setLatLngs([]);
 }
 
 // --- TRIGGER SEARCH ---
@@ -481,6 +487,18 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
         return;
     }
     
+    // Draw walking paths if available
+    if (homeWalkLineLayer) homeWalkLineLayer.setLatLngs([]);
+    if (workWalkLineLayer) workWalkLineLayer.setLatLngs([]);
+    if (data.walking_paths) {
+        if (data.walking_paths.home_walk && homeWalkLineLayer) {
+            homeWalkLineLayer.setLatLngs(data.walking_paths.home_walk);
+        }
+        if (data.walking_paths.work_walk && workWalkLineLayer) {
+            workWalkLineLayer.setLatLngs(data.walking_paths.work_walk);
+        }
+    }
+
     // 1. Draw Isochrones on Map
     Object.entries(data.isochrones).forEach(([sourceId, rings]) => {
         // Sort rings in reverse so largest rings (15m) are drawn first (in the background)

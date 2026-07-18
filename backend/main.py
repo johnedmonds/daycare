@@ -15,7 +15,7 @@ from backend.data.daycare import (
     enrich_daycare_with_inspections
 )
 from backend.data.network import load_walk_network
-from backend.geo.isochrone import compute_multi_ring_isochrone
+from backend.geo.isochrone import compute_multi_ring_isochrone, compute_multi_ring_isochrone_from_path
 from backend.geo.routing import get_stations_between, order_stations_on_line
 from backend.geo.spatial import (
     find_daycares_in_isochrones, 
@@ -150,6 +150,29 @@ def search_daycares(req: SearchRequest):
         if req.walk_time_mins >= 15:
             rings_to_generate.append(15)
 
+        # 2.5 Compute walking route nodes
+        home_route_nodes = None
+        if req.home_coords and home_station_coords:
+            try:
+                import osmnx as ox
+                import networkx as nx
+                start_node = ox.nearest_nodes(G_walk, X=req.home_coords[1], Y=req.home_coords[0])
+                end_node = ox.nearest_nodes(G_walk, X=home_station_coords[1], Y=home_station_coords[0])
+                home_route_nodes = nx.shortest_path(G_walk, start_node, end_node, weight="length")
+            except Exception as e:
+                logger.warning(f"Could not compute home walking route: {e}")
+
+        work_route_nodes = None
+        if req.work_coords and work_station_coords:
+            try:
+                import osmnx as ox
+                import networkx as nx
+                start_node = ox.nearest_nodes(G_walk, X=work_station_coords[1], Y=work_station_coords[0])
+                end_node = ox.nearest_nodes(G_walk, X=req.work_coords[1], Y=req.work_coords[0])
+                work_route_nodes = nx.shortest_path(G_walk, start_node, end_node, weight="length")
+            except Exception as e:
+                logger.warning(f"Could not compute work walking route: {e}")
+
         # 3. Compute isochrones for all points
         isochrones_dict = {}
         
@@ -164,7 +187,14 @@ def search_daycares(req: SearchRequest):
             )
             
         # Home pin isochrone
-        if req.home_coords:
+        if home_route_nodes:
+            isochrones_dict["home"] = compute_multi_ring_isochrone_from_path(
+                G_walk, home_route_nodes, 
+                ring_minutes=rings_to_generate, 
+                walk_speed_kmh=req.walk_speed_kmh,
+                pin_coords=req.home_coords
+            )
+        elif req.home_coords:
             isochrones_dict["home"] = compute_multi_ring_isochrone(
                 G_walk, req.home_coords[0], req.home_coords[1], 
                 ring_minutes=rings_to_generate, 
@@ -172,7 +202,14 @@ def search_daycares(req: SearchRequest):
             )
             
         # Work pin isochrone
-        if req.work_coords:
+        if work_route_nodes:
+            isochrones_dict["work"] = compute_multi_ring_isochrone_from_path(
+                G_walk, work_route_nodes, 
+                ring_minutes=rings_to_generate, 
+                walk_speed_kmh=req.walk_speed_kmh,
+                pin_coords=req.work_coords
+            )
+        elif req.work_coords:
             isochrones_dict["work"] = compute_multi_ring_isochrone(
                 G_walk, req.work_coords[0], req.work_coords[1], 
                 ring_minutes=rings_to_generate, 
@@ -187,9 +224,14 @@ def search_daycares(req: SearchRequest):
         sources_dict = {}
         for station in route_stations:
             sources_dict[station["gtfs_stop_id"]] = (station["latitude"], station["longitude"])
-        if req.home_coords:
+        if home_route_nodes:
+            sources_dict["home"] = {"type": "path", "nodes": home_route_nodes, "offset_start": 0.0}
+        elif req.home_coords:
             sources_dict["home"] = req.home_coords
-        if req.work_coords:
+            
+        if work_route_nodes:
+            sources_dict["work"] = {"type": "path", "nodes": work_route_nodes, "offset_start": 0.0}
+        elif req.work_coords:
             sources_dict["work"] = req.work_coords
 
         # Find which daycares lie in the isochrones using network distance
@@ -276,10 +318,22 @@ def search_daycares(req: SearchRequest):
             for s in route_stations
         ]
 
+        # 7. Extract coordinates of walking paths for visualization
+        walking_paths = {}
+        if home_route_nodes:
+            walking_paths["home_walk"] = [
+                [G_walk.nodes[n]["y"], G_walk.nodes[n]["x"]] for n in home_route_nodes
+            ]
+        if work_route_nodes:
+            walking_paths["work_walk"] = [
+                [G_walk.nodes[n]["y"], G_walk.nodes[n]["x"]] for n in work_route_nodes
+            ]
+
         return {
             "stations": response_stations,
             "isochrones": isochrones_dict,
             "daycares": results,
+            "walking_paths": walking_paths,
             "summary": {
                 "total_found": len(results),
                 "infant_only": req.accepts_infants_only,

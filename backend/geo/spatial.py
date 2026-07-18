@@ -107,19 +107,33 @@ def find_daycares_in_isochrones(daycares, G, sources_dict, walk_time_mins, walk_
     
     # Pre-calculate reachable nodes and their distances for each source
     source_reachables = {}
-    for source_id, coords in sources_dict.items():
+    for source_id, source_data in sources_dict.items():
         try:
-            n_source = ox.nearest_nodes(G, X=coords[1], Y=coords[0])
-            node_data = G.nodes[n_source]
-            offset_start = haversine_distance(coords[0], coords[1], node_data["y"], node_data["x"])
-            
-            # Dijkstra path lengths in meters
-            lengths = nx.single_source_dijkstra_path_length(G, source=n_source, cutoff=max_dist, weight="length")
-            source_reachables[source_id] = {
-                "n_source": n_source,
-                "offset_start": offset_start,
-                "lengths": lengths
-            }
+            if isinstance(source_data, dict) and source_data.get("type") == "path":
+                path_nodes = source_data["nodes"]
+                offset_start = source_data.get("offset_start", 0.0)
+                
+                # Multi-source Dijkstra path lengths in meters
+                lengths = nx.multi_source_dijkstra_path_length(G, sources=path_nodes, cutoff=max_dist, weight="length")
+                source_reachables[source_id] = {
+                    "path_nodes": path_nodes,
+                    "offset_start": offset_start,
+                    "lengths": lengths
+                }
+            else:
+                # Assume source_data is a tuple/list of (latitude, longitude)
+                coords = source_data
+                n_source = ox.nearest_nodes(G, X=coords[1], Y=coords[0])
+                node_data = G.nodes[n_source]
+                offset_start = haversine_distance(coords[0], coords[1], node_data["y"], node_data["x"])
+                
+                # Dijkstra path lengths in meters
+                lengths = nx.single_source_dijkstra_path_length(G, source=n_source, cutoff=max_dist, weight="length")
+                source_reachables[source_id] = {
+                    "n_source": n_source,
+                    "offset_start": offset_start,
+                    "lengths": lengths
+                }
         except Exception as e:
             logger.error(f"Error computing reachable nodes for source {source_id}: {e}")
             
