@@ -231,41 +231,45 @@ function onStationsChanged() {
 
 // --- Toggle Pin Mode (Home / Work) ---
 function togglePinMode(type) {
-    const homeChk = document.getElementById("pin-home-chk");
-    const workChk = document.getElementById("pin-work-chk");
+    const homeBtn = document.getElementById("btn-pin-home");
+    const workBtn = document.getElementById("btn-pin-work");
     
     if (type === "home") {
         if (pinMode === "home") {
-            // Cancel
             pinMode = null;
-            homeChk.checked = false;
+            homeBtn.classList.remove("active");
+            map.getContainer().style.cursor = "";
         } else {
             pinMode = "home";
-            homeChk.checked = true;
-            workChk.checked = false;
+            homeBtn.classList.add("active");
+            workBtn.classList.remove("active");
             map.getContainer().style.cursor = "crosshair";
         }
     } else if (type === "work") {
         if (pinMode === "work") {
-            // Cancel
             pinMode = null;
-            workChk.checked = false;
+            workBtn.classList.remove("active");
+            map.getContainer().style.cursor = "";
         } else {
             pinMode = "work";
-            workChk.checked = true;
-            homeChk.checked = false;
+            workBtn.classList.add("active");
+            homeBtn.classList.remove("active");
             map.getContainer().style.cursor = "crosshair";
         }
     }
 }
 
 // --- Set Custom Pins ---
-function setHomePin(lat, lng) {
+function setHomePin(lat, lng, updateInputs = true) {
     homeCoords = [lat, lng];
     pinMode = null;
-    document.getElementById("pin-home-chk").checked = false;
-    document.getElementById("home-coords-display").classList.remove("hidden");
+    document.getElementById("btn-pin-home").classList.remove("active");
     map.getContainer().style.cursor = "";
+    
+    if (updateInputs) {
+        document.getElementById("home-lat").value = parseFloat(lat).toFixed(6);
+        document.getElementById("home-lng").value = parseFloat(lng).toFixed(6);
+    }
     
     if (homeMarker) pinsLayerGroup.removeLayer(homeMarker);
     
@@ -280,12 +284,16 @@ function setHomePin(lat, lng) {
     homeMarker.bindPopup("<b>Home Location Pin</b>");
 }
 
-function setWorkPin(lat, lng) {
+function setWorkPin(lat, lng, updateInputs = true) {
     workCoords = [lat, lng];
     pinMode = null;
-    document.getElementById("pin-work-chk").checked = false;
-    document.getElementById("work-coords-display").classList.remove("hidden");
+    document.getElementById("btn-pin-work").classList.remove("active");
     map.getContainer().style.cursor = "";
+    
+    if (updateInputs) {
+        document.getElementById("work-lat").value = parseFloat(lat).toFixed(6);
+        document.getElementById("work-lng").value = parseFloat(lng).toFixed(6);
+    }
     
     if (workMarker) pinsLayerGroup.removeLayer(workMarker);
     
@@ -299,6 +307,48 @@ function setWorkPin(lat, lng) {
     }).addTo(pinsLayerGroup);
     workMarker.bindPopup("<b>Work Location Pin</b>");
 }
+
+// --- Coordinate Manual Inputs & Clearing ---
+function onCoordsInput(type) {
+    const latInput = document.getElementById(`${type}-lat`);
+    const lngInput = document.getElementById(`${type}-lng`);
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+    
+    if (!isNaN(lat) && !isNaN(lng)) {
+        // Validation: Must be roughly near/within greater New York region
+        if (lat >= 40.0 && lat <= 41.5 && lng >= -74.5 && lng <= -73.0) {
+            if (type === "home") {
+                setHomePin(lat, lng, false);
+            } else if (type === "work") {
+                setWorkPin(lat, lng, false);
+            }
+        }
+    }
+}
+
+function clearPin(type) {
+    if (type === "home") {
+        homeCoords = null;
+        if (homeMarker) {
+            pinsLayerGroup.removeLayer(homeMarker);
+            homeMarker = null;
+        }
+        document.getElementById("home-lat").value = "";
+        document.getElementById("home-lng").value = "";
+        document.getElementById("btn-pin-home").classList.remove("active");
+    } else if (type === "work") {
+        workCoords = null;
+        if (workMarker) {
+            pinsLayerGroup.removeLayer(workMarker);
+            workMarker = null;
+        }
+        document.getElementById("work-lat").value = "";
+        document.getElementById("work-lng").value = "";
+        document.getElementById("btn-pin-work").classList.remove("active");
+    }
+}
+
 
 // --- Clear Layer Groups ---
 function clearSearchLayers() {

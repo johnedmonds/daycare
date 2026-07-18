@@ -407,6 +407,133 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .pin-status.hidden {
     display: none;
 }
+/* Custom Pins Coordinate Inputs */
+.pin-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pin-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pin-block-header label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-main);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.inline-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.home-icon-color {
+    color: var(--color-success);
+}
+
+.work-icon-color {
+    color: #a855f7; /* Purple */
+}
+
+.coords-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    transition: var(--transition-smooth);
+}
+
+.coord-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.coord-field input {
+    width: 100%;
+    background-color: var(--bg-input);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    transition: var(--transition-smooth);
+}
+
+.coord-field input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+}
+
+/* Remove default spin buttons for coordinate numbers */
+.coord-field input::-webkit-outer-spin-button,
+.coord-field input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.coord-field input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.btn-icon {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.btn-icon i {
+    width: 14px;
+    height: 14px;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+}
+
+.btn-clear-pin:hover {
+    color: var(--color-danger);
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Active Pin map buttons */
+#btn-pin-home.active {
+    color: var(--color-success);
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+#btn-pin-work.active {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.12);
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
 
 /* Buttons */
 .btn {

@@ -114,24 +114,50 @@
                     
                     <!-- Section: Pins and Filtering -->
                     <div class="control-group">
-                        <h2><i data-lucide="map-pin"></i> 3. Extra Options</h2>
+                        <h2><i data-lucide="map-pin"></i> 3. Custom Pins & Filters</h2>
                         
-                        <div class="checkbox-row" onclick="togglePinMode('home')">
-                            <input type="checkbox" id="pin-home-chk">
-                            <div class="checkbox-label">
-                                <span class="title">Pin Home Location</span>
-                                <span class="desc">Click map to set home coordinates</span>
+                        <div class="pin-block">
+                            <div class="pin-block-header">
+                                <label><i data-lucide="home" class="inline-icon home-icon-color"></i> Home Location</label>
                             </div>
-                            <div class="pin-status hidden" id="home-coords-display">Set</div>
+                            <div class="coords-input-container" id="home-coords-container">
+                                <div class="coord-field">
+                                    <label for="home-lat">Lat</label>
+                                    <input type="number" id="home-lat" step="any" placeholder="40.7128" oninput="onCoordsInput('home')">
+                                </div>
+                                <div class="coord-field">
+                                    <label for="home-lng">Lng</label>
+                                    <input type="number" id="home-lng" step="any" placeholder="-73.9600" oninput="onCoordsInput('home')">
+                                </div>
+                                <button class="btn-icon btn-pin-map" id="btn-pin-home" onclick="togglePinMode('home')" title="Pin on Map">
+                                    <i data-lucide="map-pin"></i>
+                                </button>
+                                <button class="btn-icon btn-clear-pin" onclick="clearPin('home')" title="Clear Pin">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
                         </div>
                         
-                        <div class="checkbox-row" onclick="togglePinMode('work')">
-                            <input type="checkbox" id="pin-work-chk">
-                            <div class="checkbox-label">
-                                <span class="title">Pin Work Location</span>
-                                <span class="desc">Click map to set work coordinates</span>
+                        <div class="pin-block">
+                            <div class="pin-block-header">
+                                <label><i data-lucide="briefcase" class="inline-icon work-icon-color"></i> Work Location</label>
                             </div>
-                            <div class="pin-status hidden" id="work-coords-display">Set</div>
+                            <div class="coords-input-container" id="work-coords-container">
+                                <div class="coord-field">
+                                    <label for="work-lat">Lat</label>
+                                    <input type="number" id="work-lat" step="any" placeholder="40.7128" oninput="onCoordsInput('work')">
+                                </div>
+                                <div class="coord-field">
+                                    <label for="work-lng">Lng</label>
+                                    <input type="number" id="work-lng" step="any" placeholder="-73.9600" oninput="onCoordsInput('work')">
+                                </div>
+                                <button class="btn-icon btn-pin-map" id="btn-pin-work" onclick="togglePinMode('work')" title="Pin on Map">
+                                    <i data-lucide="map-pin"></i>
+                                </button>
+                                <button class="btn-icon btn-clear-pin" onclick="clearPin('work')" title="Clear Pin">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="checkbox-row">
