@@ -832,6 +832,17 @@ input[type="range"]::-webkit-slider-thumb:hover {
     color: #ffffff;
 }
 
+.action-btn-tertiary {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.action-btn-tertiary:hover {
+    background: #a855f7;
+    color: #ffffff;
+}
+
 /* Safety Tab Styles */
 .safety-grade-container {
     display: flex;
@@ -1228,6 +1239,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
     font-size: 11px;
     color: var(--text-muted);
     margin-bottom: 4px;
+}
+
+.leaflet-popup-content a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.leaflet-popup-content a:hover {
+    text-decoration: underline;
 }
 
 /* --- Responsive Layout (Mobile stylesheet) --- */
