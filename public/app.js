@@ -670,6 +670,10 @@ export function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
 }
 
 // --- Card Hover Highlighting ---
+export async function triggerSearch() {
+}
+
+
 export function highlightDaycare(dcid) {
     const marker = daycareMarkers[dcid];
     if (marker) {
