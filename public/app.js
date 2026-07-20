@@ -1,20 +1,20 @@
 // --- State Management ---
-let map;
-let linesData = [];
-let stationsData = [];
-let routeStations = [];
-let daycareMarkers = {};
-let stationMarkers = {};
-let isochroneLayers = [];
-let homeMarker = null;
-let workMarker = null;
+export let map;
+export let linesData = [];
+export let stationsData = [];
+export let routeStations = [];
+export let daycareMarkers = {};
+export let stationMarkers = {};
+export let isochroneLayers = [];
+export let homeMarker = null;
+export let workMarker = null;
 
-let homeCoords = null;
-let workCoords = null;
-let pinMode = null; // 'home' or 'work' or null
+export let homeCoords = null;
+export let workCoords = null;
+export let pinMode = null; // 'home' or 'work' or null
 
 // MTA Official Hex Colors lookup (matching backend)
-const MTA_COLORS = {
+export const MTA_COLORS = {
     "A": "#0039A6", "C": "#0039A6", "E": "#0039A6",
     "1": "#EE352E", "2": "#EE352E", "3": "#EE352E",
     "B": "#FF6319", "D": "#FF6319", "F": "#FF6319", "M": "#FF6319",
@@ -25,23 +25,27 @@ const MTA_COLORS = {
 };
 
 // Isochrone ring styles
-const ISOCHRONE_STYLES = {
+export const ISOCHRONE_STYLES = {
     5: { color: "#10b981", fillColor: "#10b981", weight: 1.5, fillOpacity: 0.18 },
     10: { color: "#f59e0b", fillColor: "#f59e0b", weight: 1.5, fillOpacity: 0.12 },
     15: { color: "#ef4444", fillColor: "#ef4444", weight: 1.5, fillOpacity: 0.08 }
 };
 
 // Layer Groups
-let stationsLayerGroup;
-let isochronesLayerGroup;
-let daycaresLayerGroup;
-let pinsLayerGroup;
-let routeLineLayer;
-let homeWalkLineLayer;
-let workWalkLineLayer;
+export let stationsLayerGroup;
+export let isochronesLayerGroup;
+export let daycaresLayerGroup;
+export let pinsLayerGroup;
+export let routeLineLayer;
+export let homeWalkLineLayer;
+export let workWalkLineLayer;
 
 // --- Initialize App ---
-document.addEventListener("DOMContentLoaded", () => {
+export function initMapFromRust() {
+    initMap();
+    setupCoordsPasteListeners();
+    lucide.createIcons();
+}
     initMap();
     fetchLines();
     setupCoordsPasteListeners();
@@ -49,7 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- Map Setup ---
-function initMap() {
+export function initMap() {
     // Center on NYC (Nostrand Ave / central Brooklyn area)
     map = L.map("map", {
         zoomControl: false
@@ -86,7 +90,7 @@ function initMap() {
 }
 
 // --- Fetch Subway Lines ---
-async function fetchLines() {
+export async function fetchLines() {
     try {
         const response = await fetch("/api/lines");
         const data = await response.json();
@@ -107,7 +111,7 @@ async function fetchLines() {
 }
 
 // --- Subway Line Selection Changed ---
-async function onLineChanged() {
+export async function onLineChanged() {
     const line = document.getElementById("subway-line").value;
     const homeSelect = document.getElementById("home-station");
     const workSelect = document.getElementById("work-station");
@@ -174,7 +178,7 @@ async function onLineChanged() {
 }
 
 // --- Stations Selection Changed ---
-function onStationsChanged() {
+export function onStationsChanged() {
     const line = document.getElementById("subway-line").value;
     const homeVal = document.getElementById("home-station").value;
     const workVal = document.getElementById("work-station").value;
@@ -235,7 +239,7 @@ function onStationsChanged() {
 }
 
 // --- Toggle Pin Mode (Home / Work) ---
-function togglePinMode(type) {
+export function togglePinMode(type) {
     const homeBtn = document.getElementById("btn-pin-home");
     const workBtn = document.getElementById("btn-pin-work");
     
@@ -265,7 +269,7 @@ function togglePinMode(type) {
 }
 
 // --- Set Custom Pins ---
-function setHomePin(lat, lng, updateInputs = true) {
+export function setHomePin(lat, lng, updateInputs = true) {
     homeCoords = [lat, lng];
     pinMode = null;
     document.getElementById("btn-pin-home").classList.remove("active");
@@ -289,7 +293,7 @@ function setHomePin(lat, lng, updateInputs = true) {
     homeMarker.bindPopup("<b>Home Location Pin</b>");
 }
 
-function setWorkPin(lat, lng, updateInputs = true) {
+export function setWorkPin(lat, lng, updateInputs = true) {
     workCoords = [lat, lng];
     pinMode = null;
     document.getElementById("btn-pin-work").classList.remove("active");
@@ -314,7 +318,7 @@ function setWorkPin(lat, lng, updateInputs = true) {
 }
 
 // --- Coordinate Manual Inputs & Clearing ---
-function onCoordsInput(type) {
+export function onCoordsInput(type) {
     const latInput = document.getElementById(`${type}-lat`);
     const lngInput = document.getElementById(`${type}-lng`);
     const lat = parseFloat(latInput.value);
@@ -332,7 +336,7 @@ function onCoordsInput(type) {
     }
 }
 
-function clearPin(type) {
+export function clearPin(type) {
     if (type === "home") {
         homeCoords = null;
         if (homeMarker) {
@@ -355,7 +359,7 @@ function clearPin(type) {
 }
 
 // --- Clipboard Coordinate Paste Handling ---
-function setupCoordsPasteListeners() {
+export function setupCoordsPasteListeners() {
     ["home", "work"].forEach(type => {
         ["lat", "lng"].forEach(coord => {
             const input = document.getElementById(`${type}-${coord}`);
@@ -366,7 +370,7 @@ function setupCoordsPasteListeners() {
     });
 }
 
-function handleCoordsPaste(event, type) {
+export function handleCoordsPaste(event, type) {
     const clipboardData = event.clipboardData || window.clipboardData;
     if (!clipboardData) return;
     
@@ -398,7 +402,7 @@ function handleCoordsPaste(event, type) {
 
 
 // --- Clear Layer Groups ---
-function clearSearchLayers() {
+export function clearSearchLayers() {
     isochronesLayerGroup.clearLayers();
     daycaresLayerGroup.clearLayers();
     daycareMarkers = {};
@@ -410,103 +414,12 @@ function clearSearchLayers() {
 }
 
 // --- TRIGGER SEARCH ---
-async function triggerSearch() {
-    const line = document.getElementById("subway-line").value;
-    const homeVal = document.getElementById("home-station").value;
-    const workVal = document.getElementById("work-station").value;
-    const walkTime = parseInt(document.getElementById("walk-time").value);
-    const walkSpeed = parseFloat(document.getElementById("walk-speed").value);
-    const acceptsInfantsOnly = document.getElementById("infant-filter").checked;
-    
-    if (!line || !homeVal || !workVal) {
-        alert("Please configure subway line, home station, and work station first.");
-        return;
-    }
-    
-    // UI Loading state
-    const searchBtn = document.getElementById("search-btn");
-    const spinner = document.getElementById("search-spinner");
-    const progressArea = document.getElementById("progress-area");
-    const progressFill = document.getElementById("progress-fill");
-    
-    searchBtn.disabled = true;
-    spinner.classList.remove("hidden");
-    progressArea.classList.remove("hidden");
-    progressFill.style.width = "10%";
-    
-    clearSearchLayers();
-    
-    // Switch to results tab to show progress
-    switchTab("results");
-    
-    const list = document.getElementById("results-list");
-    list.innerHTML = `
-        <div class="placeholder-state">
-            <div class="spinner" style="width: 32px; height: 32px; border-color: rgba(59, 130, 246, 0.15); border-top-color: var(--color-primary);"></div>
-            <h3>Analyzing corridors...</h3>
-            <p id="loading-subtext">Computing walking geometries along your route. This is computed entirely locally using your CPU graph library.</p>
-        </div>
-    `;
-    
-    const body = {
-        line: line,
-        home_station_id: homeVal,
-        work_station_id: workVal,
-        walk_time_mins: walkTime,
-        walk_speed_kmh: walkSpeed,
-        home_coords: homeCoords,
-        work_coords: workCoords,
-        accepts_infants_only: acceptsInfantsOnly
-    };
-    
-    try {
-        progressFill.style.width = "40%";
-        document.getElementById("progress-text").textContent = "Filtering daycares & routing paths...";
-        
-        const response = await fetch("/api/search", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-        });
-        
-        progressFill.style.width = "80%";
-        document.getElementById("progress-text").textContent = "Mapping walk limits...";
-        
-        if (!response.ok) {
-            throw new Error(await response.text());
-        }
-        
-        const data = await response.json();
-        renderResults(data, walkTime, acceptsInfantsOnly);
-        
-        progressFill.style.width = "100%";
-        document.getElementById("progress-text").textContent = "Analysis complete!";
-        
-        setTimeout(() => {
-            progressArea.classList.add("hidden");
-        }, 1500);
-        
-    } catch (e) {
-        console.error(e);
-        alert("Search failed: " + e.message);
-        list.innerHTML = `
-            <div class="placeholder-state" style="color: var(--color-danger)">
-                <div class="icon">⚠️</div>
-                <h3>Calculation Error</h3>
-                <p>${e.message}</p>
-            </div>
-        `;
-        progressArea.classList.add("hidden");
-    } finally {
-        searchBtn.disabled = false;
-        spinner.classList.add("hidden");
-    }
+export async function triggerSearch() {
+    // Search is now completely driven by Rust WebAssembly.
 }
 
 // --- Render Results ---
-function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
+export function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
     const list = document.getElementById("results-list");
     list.innerHTML = "";
     
@@ -757,7 +670,7 @@ function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
 }
 
 // --- Card Hover Highlighting ---
-function highlightDaycare(dcid) {
+export function highlightDaycare(dcid) {
     const marker = daycareMarkers[dcid];
     if (marker) {
         marker.setStyle({
@@ -775,7 +688,7 @@ function highlightDaycare(dcid) {
     }
 }
 
-function unhighlightDaycare(dcid) {
+export function unhighlightDaycare(dcid) {
     const marker = daycareMarkers[dcid];
     if (marker) {
         marker.setStyle({
@@ -793,7 +706,7 @@ function unhighlightDaycare(dcid) {
 }
 
 // --- Switch Tabs ---
-function switchTab(tab) {
+export function switchTab(tab) {
     const ctrlBtn = document.getElementById("tab-btn-controls");
     const resBtn = document.getElementById("tab-btn-results");
     const ctrlTab = document.getElementById("tab-controls");
@@ -813,7 +726,7 @@ function switchTab(tab) {
 }
 
 // --- Mobile Navigation Drawer Toggle ---
-function toggleSidebar() {
+export function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("mobile-toggle-btn");
     
@@ -825,7 +738,7 @@ function toggleSidebar() {
 }
 
 // --- Toggle Daycare Card Expansion ---
-function toggleCardExpanded(dcid) {
+export function toggleCardExpanded(dcid) {
     const card = document.getElementById(`card-${dcid}`);
     if (!card) return;
     
@@ -855,7 +768,7 @@ function toggleCardExpanded(dcid) {
 }
 
 // --- Render Safety Tab HTML ---
-function renderSafetyTabHTML(dc) {
+export function renderSafetyTabHTML(dc) {
     const sm = dc.safety_metrics;
     if (!sm || sm.total_inspections === 0) {
         return `
@@ -941,7 +854,7 @@ function renderSafetyTabHTML(dc) {
 }
 
 // --- Render Violations Tab HTML ---
-function renderViolationsTabHTML(dc) {
+export function renderViolationsTabHTML(dc) {
     const sm = dc.safety_metrics;
     if (!sm || !sm.violations || sm.violations.length === 0) {
         return `
