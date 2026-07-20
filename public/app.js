@@ -414,9 +414,6 @@ export function clearSearchLayers() {
 }
 
 // --- TRIGGER SEARCH ---
-export async function triggerSearch() {
-    // Search is now completely driven by Rust WebAssembly.
-}
 
 // --- Render Results ---
 export function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
@@ -670,8 +667,6 @@ export function renderResults(data, maxWalkTime, acceptsInfantsOnly) {
 }
 
 // --- Card Hover Highlighting ---
-export async function triggerSearch() {
-}
 
 
 export function highlightDaycare(dcid) {
